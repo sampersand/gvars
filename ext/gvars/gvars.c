@@ -1,28 +1,24 @@
 #include "ruby.h"
 
-extern VALUE rb_gvar_get(ID);
-extern VALUE rb_gvar_set(ID, VALUE);
-extern VALUE rb_gvar_defined(ID);
-extern void rb_alias_variable(ID, ID);
-
 static VALUE
 gvars_global_variable_get(VALUE self, VALUE name)
 {
-	ID id = rb_check_id(&name);
-	printf("yo %ld\n", id); fflush(stdout);
-	return rb_gvar_get(id);
+	if (RB_SYMBOL_P(name)) name = rb_sym2str(name);
+	return rb_gv_get(StringValueCStr(name));
 }
 
 static VALUE
 gvars_global_variable_set(VALUE self, VALUE name, VALUE value)
 {
-	return rb_gvar_set(rb_intern_str(name), value);
+	if (RB_SYMBOL_P(name)) name = rb_sym2str(name);
+	return rb_gv_set(StringValueCStr(name), value);
 }
 
 static VALUE
 gvars_global_variable_defined_p(VALUE self, VALUE name)
 {
-	return rb_gvar_defined(rb_intern_str(name));
+	extern VALUE rb_gvar_defined(ID);
+	return rb_gvar_defined(rb_check_id(&name));
 }
 
 static VALUE
@@ -34,7 +30,15 @@ gvars_global_variables(VALUE self)
 static VALUE
 gvars_alias_global_variable(VALUE self, VALUE new, VALUE old)
 {
-	return rb_alias_variable(rb_intern_str(new), rb_intern_str(old)), new;
+	if (RB_SYMBOL_P(new)) new = rb_sym2str(new);
+	if (RB_SYMBOL_P(old)) old = rb_sym2str(old);
+
+	// ID newid = rb_intern_str(new);
+	// ID newid = rb_check_id(&new);
+	// ID oldid = rb_check_id(&old);
+
+	rb_alias_variable(rb_intern_str(new), rb_intern_str(old));
+	return new;
 }
 
 struct hooked_var {
@@ -54,7 +58,6 @@ static void hooked_var_setter(VALUE val, ID id, VALUE *data) {
 static VALUE
 gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 {
-	// extern VALUE rb_convert_type(VALUE, int, const char *, ID);
 	VALUE name, getter, setter;
 
 	switch (rb_scan_args(argc, argv, "12", &name, &getter, &setter)) {
