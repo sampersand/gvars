@@ -8,7 +8,9 @@ extern void rb_alias_variable(ID, ID);
 static VALUE
 gvars_global_variable_get(VALUE self, VALUE name)
 {
-	return rb_gvar_get(rb_intern_str(name));
+	ID id = rb_check_id(&name);
+	printf("yo %ld\n", id); fflush(stdout);
+	return rb_gvar_get(id);
 }
 
 static VALUE
@@ -52,7 +54,7 @@ static void hooked_var_setter(VALUE val, ID id, VALUE *data) {
 static VALUE
 gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 {
-	extern VALUE rb_check_vonert_type_with_id(VALUE, int, const char *, ID);
+	// extern VALUE rb_convert_type(VALUE, int, const char *, ID);
 	VALUE name, getter, setter;
 
 	switch (rb_scan_args(argc, argv, "12", &name, &getter, &setter)) {
@@ -66,7 +68,7 @@ gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 
 	VALUE getter_proc, setter_proc;
 
-	getter_proc = rb_check_vonert_type_with_id(getter, T_DATA, "Proc", rb_intern("to_proc"));
+	getter_proc = rb_convert_type(getter, T_DATA, "Proc", "to_proc");
 	if (NIL_P(getter_proc) || !rb_obj_is_proc(getter_proc)) {
 		rb_raise(rb_eTypeError, "wrong getter type %s (expected Proc)", rb_obj_classname(getter_proc));
 	}
@@ -74,7 +76,7 @@ gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 	if (NIL_P(setter)) {
 		setter_proc = Qnil;
 	} else {
-		setter_proc = rb_check_vonert_type_with_id(setter, T_DATA, "Proc", rb_intern("to_proc"));
+		setter_proc = rb_convert_type(setter, T_DATA, "Proc", "to_proc");
 		if (NIL_P(setter_proc) || !rb_obj_is_proc(setter_proc)) {
 			rb_raise(rb_eTypeError, "wrong setter type %s (expected Proc)", rb_obj_classname(setter_proc));
 		}
