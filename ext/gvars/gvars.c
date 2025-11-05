@@ -85,6 +85,7 @@ gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 		}
 	}
 
+	// todo: not just leak memory here lol
 	struct hooked_var *hv = (struct hooked_var *)malloc(sizeof(struct hooked_var));
 	hv->getter = getter_proc;
 	hv->setter = setter_proc;
@@ -115,7 +116,6 @@ Init_gvars(void)
 	rb_define_alias(rb_singleton_class(gvars_module), "defined?", "global_variable_defined?");
 	rb_define_alias(rb_singleton_class(gvars_module), "alias", "alias_global_variable");
 	rb_define_alias(rb_singleton_class(gvars_module), "list", "global_variables");
-
 	rb_define_alias(rb_singleton_class(gvars_module), "[]", "global_variable_get");
 	rb_define_alias(rb_singleton_class(gvars_module), "[]=", "global_variable_set");
 

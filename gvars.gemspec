@@ -4,7 +4,7 @@ require_relative "lib/gvars/version"
 
 Gem::Specification.new do |spec|
   spec.name = "gvars"
-  spec.version = Gvars::VERSION
+  spec.version = GVars::VERSION
   spec.authors = ["SamW"]
   spec.email = ["mail@sampersand.me"]
 

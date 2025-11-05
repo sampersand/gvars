@@ -1,4 +1,20 @@
-module Gvars
+module GVars
   VERSION: String
+
+  def self?.global_variable_get: (interned name) -> untyped
+  def self?.global_variable_set: [T] (interned name, T value) -> T
+  def self?.alias_global_variable: (interned to_set, interned original) -> __todo__
+  def self?.global_variables: () -> Array[Symbol]
+
+  alias self.get self.global_variable_get
+  alias self.[] self.global_variable_get
+  alias self.set self.global_variable_set
+  alias self.[]= self.global_variable_set
+  alias self.list self.global_variables
+  alias self.alias self.alias_global_variable
+
+  def self.define_virtual_global: (interned name) { (Symbol name) -> untyped } -> void
+                                | (interned name, proc getter, ?proc setter) -> void
+
   # See the writing guide of rbs: https://github.com/ruby/rbs#guides
 end
