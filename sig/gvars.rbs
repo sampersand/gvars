@@ -1,20 +1,30 @@
 module GVars
   VERSION: String
 
-  def self?.global_variable_get: (interned name) -> untyped
-  def self?.global_variable_set: [T] (interned name, T value) -> T
-  def self?.alias_global_variable: (interned to_set, interned original) -> __todo__
-  def self?.global_variables: () -> Array[Symbol]
+  type getter[T] = ^(Symbol name) -> T
+  type setter[T] = ^(Symbol name, T value) -> void
 
-  alias self.get self.global_variable_get
-  alias self.[] self.global_variable_get
-  alias self.set self.global_variable_set
-  alias self.[]= self.global_variable_set
-  alias self.list self.global_variables
-  alias self.alias self.alias_global_variable
+  # Top-level utility methods
 
-  def self.define_virtual_global: (interned name) { (Symbol name) -> untyped } -> void
-                                | (interned name, proc getter, ?proc setter) -> void
+  def self.get: (interned name) -> untyped
+  def self.set: [T] (interned name, T value) -> T
+  def self.list: () -> Array[Symbol]
+  def self.alias: (interned to_set, interned original) -> Symbol
+  alias self.[] self.get
+  alias self.[]= self.set
 
-  # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+  def self.readonly: (interned name) -> Symbol # raises error if unset
+                   | (interned name, untyped value) -> Symbol
+                   | (interned name) { (Symbol name) -> untyped } -> Symbol # same as `virtual` with a block
+
+  def self.virtual: (interned name, getter[untyped] getter, ?setter[untyped]? setter) -> Symbol
+                  | (interned name) { (Symbol name) -> untyped } -> Symbol # no setter
+
+  def self.hooked: [T] (interned name, T initial) { (Symbol name, T old) -> T } -> Symbol # no setter allowed
+                 | [T] (interned name, T initial, getter[T] getter, ?setter[T]? setter) -> Symbol
+
+  # Mixin methods
+  def global_variable_get: (interned name) -> untyped
+  def global_variable_set: [T] (interned name, T value) -> T
+  def alias_global_variable: (interned to_set, interned original) -> Symbol
 end

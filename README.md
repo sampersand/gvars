@@ -1,5 +1,25 @@
 # Gvars
+```ruby
+require 'gvars' # My new gem!
 
+# Global variable that you can always use to reference `ruby`
+GVars.readonly :$RUBY_EXE, ENV.fetch('RUBY_EXE', RbConfig.ruby)
+
+# Always supply `$program` as the base of the current one! Useful in scripts!
+GVars.virtual :$program do
+  File.basename $PROGRAM_NAME
+end
+
+# Use `$PWD` for the current dir, and even assign to it!
+GVars.virtual :$PWD, proc{ Dir.chdir }, proc{ Dir.chdir it }
+
+# Unique ID
+GVars.hooked(:$uuid, Random.new) do |random|
+  random.uuid
+end
+```
+
+<!--
 TODO: Delete this and the text below, and describe your gem
 
 Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/gvars`. To experiment with that code, run `bin/console` for an interactive prompt.
@@ -37,3 +57,4 @@ Bug reports and pull requests are welcome on GitHub at https://github.com/[USERN
 ## License
 
 The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+ -->

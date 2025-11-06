@@ -1,44 +1,51 @@
 #include "ruby.h"
 
-static VALUE
-gvars_global_variable_get(VALUE self, VALUE name)
-{
-	if (RB_SYMBOL_P(name)) name = rb_sym2str(name);
-	return rb_gv_get(StringValueCStr(name));
+// Converts `name` to a global variable name, ensures it's valid, and returns it.
+//
+// for checking, it makes that `name` starts with `$`. This isn't really required, as ruby supports
+// globals that don't start with `$` (but doesn't expose any methods to interact with them)
+static char *get_global_name(VALUE *name) {
+	if (RB_SYMBOL_P(*name)) *name = rb_sym2str(*name);
+	char *namestr = StringValueCStr(*name);
+
+	if (namestr[0] != '$') {
+		rb_raise(rb_eNameError, "'%s' is not allowed as a global variable name", namestr);
+	}
+
+	return namestr;
 }
 
 static VALUE
-gvars_global_variable_set(VALUE self, VALUE name, VALUE value)
+gvars_f_get(VALUE self, VALUE name)
 {
-	if (RB_SYMBOL_P(name)) name = rb_sym2str(name);
-	return rb_gv_set(StringValueCStr(name), value);
+	return rb_gv_get(get_global_name(&name));
 }
 
 static VALUE
-gvars_global_variable_defined_p(VALUE self, VALUE name)
+gvars_f_set(VALUE self, VALUE name, VALUE value)
+{
+	return rb_gv_set(get_global_name(&name), value);
+}
+
+static VALUE
+gvars_f_defined_p(VALUE self, VALUE name)
 {
 	extern VALUE rb_gvar_defined(ID);
 	return rb_gvar_defined(rb_check_id(&name));
 }
 
 static VALUE
-gvars_global_variables(VALUE self)
+gvars_list(VALUE self)
 {
 	return rb_f_global_variables();
 }
 
 static VALUE
-gvars_alias_global_variable(VALUE self, VALUE new, VALUE old)
+gvars_f_alias(VALUE self, VALUE new, VALUE old)
 {
-	if (RB_SYMBOL_P(new)) new = rb_sym2str(new);
-	if (RB_SYMBOL_P(old)) old = rb_sym2str(old);
-
-	// ID newid = rb_intern_str(new);
-	// ID newid = rb_check_id(&new);
-	// ID oldid = rb_check_id(&old);
-
-	rb_alias_variable(rb_intern_str(new), rb_intern_str(old));
-	return new;
+    ID newid = rb_intern(get_global_name(&new));
+	rb_alias_variable(newid, rb_intern(get_global_name(&old)));
+	return ID2SYM(newid);
 }
 
 struct hooked_var {
@@ -61,13 +68,24 @@ gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 	VALUE name, getter, setter;
 
 	switch (rb_scan_args(argc, argv, "12", &name, &getter, &setter)) {
-	case 1: getter = (rb_need_block(), rb_block_proc());
-	case 2: setter = Qnil;
-	case 3: break;
-	default: rb_bug("oops");
+	case 1:
+		getter = (rb_need_block(), rb_block_proc());
+		setter = Qnil;
+		break;
+
+	case 2:
+		setter = Qnil;
+
+	case 3:
+        if (rb_block_given_p()) {
+            rb_warn("given block not used");
+        }
+		break;
+	default:
+		rb_bug("oops");
 	}
 
-	const char *name_str = rb_id2name(rb_check_id(&name));
+	char *name_str = get_global_name(&name);
 
 	VALUE getter_proc, setter_proc;
 
@@ -91,7 +109,9 @@ gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 	hv->setter = setter_proc;
 
 	rb_define_hooked_variable(name_str, (VALUE *)hv, hooked_var_getter, setter_proc == Qnil ? rb_gvar_readonly_setter : hooked_var_setter);
-	return name;
+extern void rb_gvar_ractor_local(const char *);
+	rb_gvar_ractor_local(name_str);
+	return name; //TODO: ID2SYM(id)
 }
 
 VALUE gvars_module;
@@ -102,13 +122,13 @@ Init_gvars(void)
 	gvars_module = rb_define_module("GVars");
 
 	// Define module-level functions that can be used as mixins
-	rb_define_module_function(gvars_module, "global_variable_get", gvars_global_variable_get, 1);
-	rb_define_module_function(gvars_module, "global_variable_set", gvars_global_variable_set, 2);
-	rb_define_module_function(gvars_module, "global_variable_defined?", gvars_global_variable_defined_p, 1);
-	rb_define_module_function(gvars_module, "alias_global_variable", gvars_alias_global_variable, 2);
+	rb_define_module_function(gvars_module, "global_variable_get", gvars_f_get, 1);
+	rb_define_module_function(gvars_module, "global_variable_set", gvars_f_set, 2);
+	rb_define_module_function(gvars_module, "global_variable_defined?", gvars_f_defined_p, 1);
+	rb_define_module_function(gvars_module, "alias_global_variable", gvars_f_alias, 2);
 
 	// Don't make mixin, as it exists in Kernel
-	rb_define_singleton_method(gvars_module, "global_variables", gvars_global_variables, 0);
+	rb_define_singleton_method(gvars_module, "global_variables", gvars_list, 0);
 
 	// aliases at top-level
 	rb_define_alias(rb_singleton_class(gvars_module), "get", "global_variable_get");
@@ -119,7 +139,7 @@ Init_gvars(void)
 	rb_define_alias(rb_singleton_class(gvars_module), "[]", "global_variable_get");
 	rb_define_alias(rb_singleton_class(gvars_module), "[]=", "global_variable_set");
 
-	rb_define_singleton_method(gvars_module, "define_virtual_global", gvars_define_virtual_global, -1);
+	rb_define_singleton_method(gvars_module, "virtual", gvars_define_virtual_global, -1);
 
 	// Virtual methods: TODO
 }
