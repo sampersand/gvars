@@ -20,7 +20,7 @@ module GVars
   def self.virtual: (interned name, getter[untyped] getter, ?setter[untyped]? setter) -> Symbol
                   | (interned name) { (Symbol name) -> untyped } -> Symbol # no setter
 
-  def self.hooked: [T] (interned name, T initial) { (Symbol name, T old) -> T } -> Symbol # no setter allowed
+  def self.hooked: [T] (interned name, T initial, ?boolish allow_setter) { (Symbol name, T old) -> T } -> Symbol # no setter allowed unless `allow_setter = true`
                  | [T] (interned name, T initial, getter[T] getter, ?setter[T]? setter) -> Symbol
 
   # Mixin methods

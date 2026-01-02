@@ -5,8 +5,11 @@
 // for checking, it makes that `name` starts with `$`. This isn't really required, as ruby supports
 // globals that don't start with `$` (but doesn't expose any methods to interact with them)
 static char *get_global_name(VALUE *name) {
+	// printf("spot1\n");
 	if (RB_SYMBOL_P(*name)) *name = rb_sym2str(*name);
+	// printf("spot2\n");
 	char *namestr = StringValueCStr(*name);
+	// printf("spot3\n");
 
 	if (namestr[0] != '$') {
 		rb_raise(rb_eNameError, "'%s' is not allowed as a global variable name", namestr);
@@ -18,7 +21,8 @@ static char *get_global_name(VALUE *name) {
 static VALUE
 gvars_f_get(VALUE self, VALUE name)
 {
-	return rb_gv_get(get_global_name(&name));
+	// extern VALUE rb_gvars_get(ID);
+	return rb_gvars_get(rb_intern(get_global_name(&name)));
 }
 
 static VALUE
@@ -109,7 +113,7 @@ gvars_define_virtual_global(int argc, VALUE *argv, VALUE self)
 	hv->setter = setter_proc;
 
 	rb_define_hooked_variable(name_str, (VALUE *)hv, hooked_var_getter, setter_proc == Qnil ? rb_gvar_readonly_setter : hooked_var_setter);
-extern void rb_gvar_ractor_local(const char *);
+	extern void rb_gvar_ractor_local(const char *);
 	rb_gvar_ractor_local(name_str);
 	return name; //TODO: ID2SYM(id)
 }
