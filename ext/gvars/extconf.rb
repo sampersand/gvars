@@ -1,5 +1,5 @@
 require 'mkmf'
 
-$CFLAGS << ' -g -fsanitize=undefined'
+# $CFLAGS << ' -g -fsanitize=undefined'
 
 create_makefile 'gvars/gvars'

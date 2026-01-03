@@ -10,9 +10,9 @@ Rake::ExtensionTask.new('gvars') do |ext|
   ext.lib_dir = 'lib/gvars'
 end
 
-# Minitest::TestTask.create
+Minitest::TestTask.create
 
-# task default: :test
+task default: :test
 
 desc 'clean compiled files'
 task :clean do
