@@ -1,60 +1,33 @@
-# Gvars
+# GVars
+
+Adds in missing utilities relating to global variables in Ruby.
+
+Ever been bothered how there's `instance_variable_get`, `binding.local_variable_get`, `class_variable_get`, even `const_get`, but no `global_variable_get`? Ever resorted to `eval("$#{name} = value")` to assign a global variable? Look no further!
+
+## Features
 ```ruby
-require 'gvars' # My new gem!
+$foo = 34
 
-# Global variable that you can always use to reference `ruby`
-GVars.readonly :$RUBY_EXE, ENV.fetch('RUBY_EXE', RbConfig.ruby)
+# Dynamically lookup globals
+puts GVars.get(:$foo) #=> 34
 
-# Always supply `$program` as the base of the current one! Useful in scripts!
-GVars.virtual :$program do
-  File.basename $PROGRAM_NAME
-end
+# Dynamically assign globals!
+GVars.set(:$foo, 99)
+puts $foo #=> 99
 
-# Use `$PWD` for the current dir, and even assign to it!
-GVars.virtual :$PWD, proc{ Dir.chdir }, proc{ Dir.chdir it }
+# How about dynamically `alias`ing globals?
+GBars.alias :$bar, :$foo
+$bar = 12
+puts $foo #=> 12
 
-# Unique ID
-GVars.hooked(:$uuid, Random.new) do |random|
-  random.uuid
-end
+# You can also mixin `GVars` to get the methods that should be
+# defined on Kernel:
+include GVars
+puts global_variable_get(:$bar) #=> 12
+puts global_variable_set(:$bar, 19) #=> 19
 ```
 
-<!--
-TODO: Delete this and the text below, and describe your gem
+Up next: virtual variables, and collection methods!
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/gvars`. To experiment with that code, run `bin/console` for an interactive prompt.
-
-## Installation
-
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
-
-Install the gem and add to the application's Gemfile by executing:
-
-```bash
-bundle add UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
-```
-
-If bundler is not being used to manage dependencies, install the gem by executing:
-
-```bash
-gem install UPDATE_WITH_YOUR_GEM_NAME_IMMEDIATELY_AFTER_RELEASE_TO_RUBYGEMS_ORG
-```
-
-## Usage
-
-TODO: Write usage instructions here
-
-## Development
-
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
-
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/gvars.
-
-## License
-
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
- -->
+## Known problems
+Unfortunately, Ruby's C-level `rb_gv_get` / `rb_gv_set` methods only let you manipulate ASCII identifiers... A fix _may_ be possible, but it'll have to resort to the `eval` hack.
