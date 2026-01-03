@@ -189,4 +189,20 @@ class TestGVars < Minitest::Test
       GVars.alias(:$bar, Blankity::To.s('$foo'))
     end
   end
+
+  def test_each
+    GVars.each do |key, value|
+      if value.nil?
+        assert_nil GVars.get(key)
+      else
+        assert_equal value, GVars.get(key)
+      end
+    end
+  end
+
+  def test_includes_enumerable
+    # Make sure we can do `find`
+    $test_includes_enumerable = o = Object.new
+    assert_equal [:$test_includes_enumerable, o], GVars.find { _2 == o }
+  end
 end
