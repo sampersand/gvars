@@ -20,27 +20,15 @@ module GVars
   end
 =end
 
-  class << self
-    alias get global_variable_get
-    alias []  global_variable_get
-    alias set global_variable_set
-    alias []= global_variable_set
-    alias alias alias_global_variable
-    alias list global_variables
-    # alias defined? global_variable_defined?
+  # class << self
+  #   alias get global_variable_get
+  #   alias []  global_variable_get
+  #   alias set global_variable_set
+  #   alias []= global_variable_set
+  #   alias alias alias_global_variable
+  #   alias list global_variables
+  #   # alias defined? global_variable_defined?
 
-    alias to_a list
-
-    include Enumerable
-
-    def each
-      return to_enum __method__ unless block_given?
-
-      global_variables.each do |gvar|
-        yield gvar, global_variable_get(gvar)
-      end
-    end
-
-    def to_h = each.to_h
-  end
+  #   alias to_a list
+  # end
 end

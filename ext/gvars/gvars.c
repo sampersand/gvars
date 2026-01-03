@@ -20,6 +20,7 @@ static char *get_global_name(VALUE *name) {
 	return namestr;
 }
 
+
 static VALUE
 gvars_f_global_variable_get(VALUE self, VALUE name)
 {
@@ -46,6 +47,41 @@ gvars_f_alias_global_variable(VALUE self, VALUE new, VALUE old)
 	return ID2SYM(newid);
 }
 
+static VALUE
+gvars_enum_length(VALUE self, VALUE args, VALUE eobj)
+{
+    return LONG2NUM(RARRAY_LEN(rb_f_global_variables()));
+}
+
+static VALUE
+gvars_f_each(VALUE self)
+{
+    RETURN_SIZED_ENUMERATOR(self, 0, 0, gvars_enum_length);
+
+    VALUE gvars = gvars_f_global_variables(self);
+    for (long i = 0; i < RARRAY_LEN(gvars); i++) {
+    	VALUE key = RARRAY_AREF(gvars, i);
+        rb_yield(rb_ary_new3(2, key, gvars_f_global_variable_get(self, key)));
+    }
+
+    return self;
+}
+
+static VALUE
+gvars_f_to_h(VALUE self)
+{
+    VALUE gvars = gvars_f_global_variables(self);
+    VALUE hash = rb_hash_new_capa(RARRAY_LEN(gvars));
+
+    for (long i = 0; i < RARRAY_LEN(gvars); i++) {
+    	VALUE key = RARRAY_AREF(gvars, i);
+        rb_hash_aset(hash, key, gvars_f_global_variable_get(self, key));
+    }
+
+    return hash;
+}
+
+
 VALUE gvars_module;
 
 void
@@ -58,6 +94,21 @@ Init_gvars(void)
 	rb_define_module_function(gvars_module, "global_variable_set", gvars_f_global_variable_set, 2);
 	rb_define_module_function(gvars_module, "alias_global_variable", gvars_f_alias_global_variable, 2);
 
-	// Don't make mixin, as it exists in Kernel
+	// Don't make it an instance method, as it exists in Kernel
 	rb_define_singleton_method(gvars_module, "global_variables", gvars_f_global_variables, 0);
+
+	// Enumerable methods
+ 	rb_extend_object(gvars_module, rb_mEnumerable);
+	rb_define_singleton_method(gvars_module, "each", gvars_f_each, 0);
+	rb_define_singleton_method(gvars_module, "to_h", gvars_f_to_h, 0);
+
+	// Aliases
+	VALUE gvars_singleton = rb_singleton_class(gvars_module);
+	rb_define_alias(rb_singleton_class(gvars_module), "get", "global_variable_get");
+	rb_define_alias(rb_singleton_class(gvars_module), "[]", "global_variable_get");
+	rb_define_alias(rb_singleton_class(gvars_module), "set", "global_variable_set");
+	rb_define_alias(rb_singleton_class(gvars_module), "[]=", "global_variable_set");
+	rb_define_alias(rb_singleton_class(gvars_module), "alias", "alias_global_variable");
+	rb_define_alias(rb_singleton_class(gvars_module), "list", "global_variables");
+	rb_define_alias(rb_singleton_class(gvars_module), "to_a", "each");
 }

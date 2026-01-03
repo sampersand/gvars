@@ -115,7 +115,6 @@ class TestGVars < Minitest::Test
 
   def test_set_scope_local
     assert_nil $_
-
     assert_equal "hi", GVars.set(:$_, "hi")
     assert_equal "hi", $_
 
@@ -191,18 +190,22 @@ class TestGVars < Minitest::Test
   end
 
   def test_each
-    GVars.each do |key, value|
-      if value.nil?
-        assert_nil GVars.get(key)
-      else
-        assert_equal value, GVars.get(key)
-      end
-    end
+    assert_kind_of Enumerable, GVars.each
+    assert_equal 2, GVars.each.first.size
+
+    # Make sure it works for special variables
+    assert_equal [:$_, nil], GVars.find { |k, v| k == :$_ }
+    $_ = 'hello'
+    assert_equal [:$_, 'hello'], GVars.find { |k, v| k == :$_ }
   end
 
-  def test_includes_enumerable
-    # Make sure we can do `find`
-    $test_includes_enumerable = o = Object.new
-    assert_equal [:$test_includes_enumerable, o], GVars.find { _2 == o }
+  def test_to_h
+    assert_includes GVars.to_h, :$DEBUG
+
+    assert_nil GVars.to_h[:$_]
+
+    $_ = 'LOL'
+    p GVars.each.find { _2; _1 == :$_; }
+    assert_equal 'LOL', GVars.to_h[:$_]
   end
 end
