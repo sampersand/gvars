@@ -104,11 +104,10 @@ Init_gvars(void)
 
 	// Aliases
 	VALUE gvars_singleton = rb_singleton_class(gvars_module);
-	rb_define_alias(rb_singleton_class(gvars_module), "get", "global_variable_get");
-	rb_define_alias(rb_singleton_class(gvars_module), "[]", "global_variable_get");
-	rb_define_alias(rb_singleton_class(gvars_module), "set", "global_variable_set");
-	rb_define_alias(rb_singleton_class(gvars_module), "[]=", "global_variable_set");
-	rb_define_alias(rb_singleton_class(gvars_module), "alias", "alias_global_variable");
-	rb_define_alias(rb_singleton_class(gvars_module), "list", "global_variables");
-	rb_define_alias(rb_singleton_class(gvars_module), "to_a", "each");
+	rb_define_alias(gvars_singleton, "get", "global_variable_get");
+	rb_define_alias(gvars_singleton, "[]", "global_variable_get");
+	rb_define_alias(gvars_singleton, "set", "global_variable_set");
+	rb_define_alias(gvars_singleton, "[]=", "global_variable_set");
+	rb_define_alias(gvars_singleton, "alias", "alias_global_variable");
+	rb_define_alias(gvars_singleton, "list", "global_variables");
 }

@@ -19,16 +19,4 @@ module GVars
     !! eval "defined? #{key}"
   end
 =end
-
-  # class << self
-  #   alias get global_variable_get
-  #   alias []  global_variable_get
-  #   alias set global_variable_set
-  #   alias []= global_variable_set
-  #   alias alias alias_global_variable
-  #   alias list global_variables
-  #   # alias defined? global_variable_defined?
-
-  #   alias to_a list
-  # end
 end

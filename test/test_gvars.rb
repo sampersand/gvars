@@ -193,19 +193,25 @@ class TestGVars < Minitest::Test
     assert_kind_of Enumerable, GVars.each
     assert_equal 2, GVars.each.first.size
 
-    # Make sure it works for special variables
-    assert_equal [:$_, nil], GVars.find { |k, v| k == :$_ }
-    $_ = 'hello'
-    assert_equal [:$_, 'hello'], GVars.find { |k, v| k == :$_ }
+    # Make sure it works for special variables. Ignore warnings, as some variables will cause
+    # them (like `$test_global_variable_unset` and `$=`)
+    capture_io do
+      assert_equal [:$_, nil], GVars.find { |k, v| k == :$_ }
+      $_ = 'hello'
+      assert_equal [:$_, 'hello'], GVars.find { |k, v| k == :$_ }
+    end
   end
 
   def test_to_h
-    assert_includes GVars.to_h, :$DEBUG
+    # Ignore warnings, as some variables will cause them (like `$test_global_variable_unset` and `$=`).
+    # TODO: Do we want to always disable them when iterating over variables?
 
-    assert_nil GVars.to_h[:$_]
+    capture_io do
+      assert_includes GVars.to_h, :$DEBUG
 
-    $_ = 'LOL'
-    p GVars.each.find { _2; _1 == :$_; }
-    assert_equal 'LOL', GVars.to_h[:$_]
+      assert_nil GVars.to_h.fetch(:$_)
+      $_ = 'LOL'
+      assert_equal 'LOL', GVars.to_h[:$_]
+    end
   end
 end
