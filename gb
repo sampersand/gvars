@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+
+version = nil
+File.open File.join __dir__, 'lib', 'gvars', 'version.rb' do |f|
+  f.read =~ /VERSION = '(.*)'/ and (version = $1; break)
+end
+
+fail "cant find version" unless version
+system('gem build gvars') && system("gem install ./gvars-#{version}.gem")
