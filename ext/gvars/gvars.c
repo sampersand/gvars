@@ -124,19 +124,63 @@ static const rb_data_type_t gvars_type = {
 };
 
 
-static VALUE virtual_var_getter(ID id, VALUE *data) {
+static VALUE gvars_virtual_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
 
 	return rb_proc_call_kw(gv->getter, rb_ary_new(), RB_NO_KEYWORDS);
 }
 
-static void virtual_var_setter(VALUE val, ID id, VALUE *data) {
+static void gvars_virtual_var_setter(VALUE val, ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
 
 	rb_proc_call_kw(gv->setter, rb_ary_new3(1, val), RB_NO_KEYWORDS);
 }
+
+static VALUE gvars_hooked_state_var_getter(ID id, VALUE *data) {
+	struct gvars_virtual_var *gv;
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	return rb_proc_call_kw(gv->getter, rb_ary_new3(1, gv->backing), RB_NO_KEYWORDS);
+}
+
+static void gvars_hooked_state_var_setter_noproc(VALUE val, ID id, VALUE *data) {
+	struct gvars_virtual_var *gv;
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	gv->backing = val;
+}
+
+static void gvars_hooked_state_var_setter_proc(VALUE val, ID id, VALUE *data) {
+	struct gvars_virtual_var *gv;
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	gv->backing = rb_proc_call_kw(gv->setter, rb_ary_new3(2, val, gv->backing), RB_NO_KEYWORDS);
+}
+
+static VALUE gvars_hooked_initial_var_getter(ID id, VALUE *data) {
+	struct gvars_virtual_var *gv;
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	gv->backing = rb_proc_call_kw(gv->getter, rb_ary_new3(1, gv->backing), RB_NO_KEYWORDS);
+	return gv->backing;
+}
+
+static void gvars_hooked_initial_var_setter_noproc(VALUE val, ID id, VALUE *data) {
+	struct gvars_virtual_var *gv;
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	gv->backing = val;
+}
+
+static void gvars_hooked_initial_var_setter_proc(VALUE val, ID id, VALUE *data) {
+	struct gvars_virtual_var *gv;
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	gv->backing = rb_proc_call_kw(gv->setter, rb_ary_new3(2, val, gv->backing), RB_NO_KEYWORDS);
+}
+
 
 static VALUE gvars_virtual_var_alloc(VALUE backing, VALUE getter, VALUE setter) {
 	struct gvars_virtual_var *gv;
@@ -147,8 +191,14 @@ static VALUE gvars_virtual_var_alloc(VALUE backing, VALUE getter, VALUE setter) 
 	return gvar_ty;
 }
 
+enum virtual_kind {
+	GVARS_VIRTUAL_KIND_VIRTUAL,
+	GVARS_VIRTUAL_KIND_INITIAL,
+	GVARS_VIRTUAL_KIND_STATE,
+};
+
 static void
-gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter, VALUE setter)
+gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter, VALUE setter, enum virtual_kind kind)
 {
 	char *name_str = get_global_name(name);
 	VALUE getter_proc, setter_proc;
@@ -158,7 +208,7 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 		rb_raise(rb_eTypeError, "wrong getter type %s (expected Proc)", rb_obj_classname(getter_proc));
 	}
 
-	if (NIL_P(setter)) {
+	if (NIL_P(setter) || setter == Qundef) {
 		setter_proc = Qnil;
 	} else {
 		setter_proc = rb_convert_type(setter, T_DATA, "Proc", "to_proc");
@@ -172,7 +222,31 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 	vp->value = RB_ALLOC(VALUE);
 	*vp->value = gvars_virtual_var_alloc(backing, getter, setter);
 
-	rb_define_hooked_variable(name_str, vp->value, virtual_var_getter, setter_proc == Qnil ? rb_gvar_readonly_setter : virtual_var_setter);
+
+	rb_gvar_getter_t *getter_meth;
+	rb_gvar_setter_t *setter_meth;
+
+	switch (kind) {
+	case GVARS_VIRTUAL_KIND_VIRTUAL:
+		getter_meth = gvars_virtual_var_getter;
+		setter_meth = setter_proc == Qnil ? rb_gvar_readonly_setter : gvars_virtual_var_setter;
+		break;
+
+	case GVARS_VIRTUAL_KIND_INITIAL:
+		getter_meth = gvars_hooked_initial_var_getter;
+		setter_meth = setter_proc == Qnil ? gvars_hooked_initial_var_setter_noproc : gvars_hooked_initial_var_setter_proc;
+		break;
+	case GVARS_VIRTUAL_KIND_STATE:
+		getter_meth = gvars_hooked_state_var_getter;
+		setter_meth = setter_proc == Qnil ? gvars_hooked_state_var_setter_noproc : gvars_hooked_state_var_setter_proc;
+		break;
+	default:
+		rb_bug("oops");
+	}
+
+	if (setter == Qundef) setter_meth = rb_gvar_readonly_setter;
+
+	rb_define_hooked_variable(name_str, vp->value, getter_meth, setter_meth);
 
 	VALUE hash = rb_iv_get(gvars_module, "@vars");
 	VALUE namesym = rb_str_new_cstr(name_str);
@@ -182,9 +256,13 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 static VALUE
 gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 {
-	VALUE name, getter, setter;
+	VALUE name, backing = Qundef, getter, setter, opts_hash, opts[2];
+    ID keyword_ids[2];
+    keyword_ids[0] = rb_intern("initial");
+    keyword_ids[1] = rb_intern("state");
+    keyword_ids[2] = rb_intern("readonly");
 
-	switch (rb_scan_args(argc, argv, "12", &name, &getter, &setter)) {
+	switch (rb_scan_args(argc, argv, "12:", &name, &getter, &setter, &opts_hash)) {
 	case 1:
 		getter = (rb_need_block(), rb_block_proc());
 		setter = Qnil;
@@ -202,7 +280,32 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 		rb_bug("oops");
 	}
 
-	gvars_define_virtual_method(self, &name, Qundef,getter, setter);
+	if (setter == Qnil) setter = Qundef;
+
+	enum virtual_kind kind = GVARS_VIRTUAL_KIND_VIRTUAL;
+	rb_get_kwargs(opts_hash, keyword_ids, 0, 3, opts);
+
+	if (opts[0] != Qundef) {
+		if (opts[1] != Qundef) {
+			rb_raise(rb_eArgError, "only one of 'initial' or 'state' may be supplied");
+		}
+		backing = opts[0];
+		kind = GVARS_VIRTUAL_KIND_INITIAL;
+	} else if (opts[1] != Qundef) {
+		backing = opts[1];
+		kind = GVARS_VIRTUAL_KIND_STATE;
+	}
+
+	bool is_readonly = false;
+	if (opts[2] != Qundef && RTEST(opts[2])) { // sadly no bool expected :-/
+		if (setter != Qnil) {
+			rb_raise(rb_eArgError, "'readonly: true' may not be supplied when a setter proc is supplied");
+		}
+
+		setter = Qundef;
+	}
+
+	gvars_define_virtual_method(self, &name, backing, getter, setter, kind);
 
 	return name; //TODO: ID2SYM(id)
 }
