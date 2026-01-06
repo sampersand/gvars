@@ -7,7 +7,7 @@ VALUE gvars_module;
 //
 // for checking, it makes that `name` starts with `$`. This isn't really required, as ruby supports
 // globals that don't start with `$` (but doesn't expose any methods to interact with them)
-static char *get_global_name(VALUE *name) {
+static char *get_global_name(VALUE *name, bool raise) {
 	// If `name` is a symbol, get its backing string
 	if (RB_SYMBOL_P(*name)) {
 		*name = rb_sym2str(*name);
@@ -16,7 +16,7 @@ static char *get_global_name(VALUE *name) {
 	char *namestr = StringValueCStr(*name);
 
 	// Ensure it starts with a dollar sign
-	if (namestr[0] != '$') {
+	if (raise && namestr[0] != '$') {
 		rb_raise(rb_eNameError, "'%s' is not allowed as a global variable name", namestr);
 	}
 
@@ -27,13 +27,26 @@ static char *get_global_name(VALUE *name) {
 static VALUE
 gvars_f_global_variable_get(VALUE self, VALUE name)
 {
-	return rb_gv_get(get_global_name(&name));
+	return rb_gv_get(get_global_name(&name, true));
+}
+
+static VALUE
+gvars_f_global_variable_aref(VALUE self, VALUE name)
+{
+	return rb_gv_get(get_global_name(&name, false));
 }
 
 static VALUE
 gvars_f_global_variable_set(VALUE self, VALUE name, VALUE value)
 {
-	return rb_gv_set(get_global_name(&name), value);
+	return rb_gv_set(get_global_name(&name, true), value);
+}
+
+
+static VALUE
+gvars_f_global_variable_aset(VALUE self, VALUE name, VALUE value)
+{
+	return rb_gv_set(get_global_name(&name, false), value);
 }
 
 static VALUE
@@ -45,8 +58,8 @@ gvars_f_global_variables(VALUE self)
 static VALUE
 gvars_f_alias_global_variable(VALUE self, VALUE new, VALUE old)
 {
-	ID newid = rb_intern(get_global_name(&new));
-	rb_alias_variable(newid, rb_intern(get_global_name(&old)));
+	ID newid = rb_intern(get_global_name(&new, true));
+	rb_alias_variable(newid, rb_intern(get_global_name(&old, true)));
 	return ID2SYM(newid);
 }
 
@@ -179,7 +192,7 @@ enum virtual_kind {
 static void
 gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter, VALUE setter, enum virtual_kind kind, int readonly_special)
 {
-	char *name_str = get_global_name(name);
+	char *name_str = get_global_name(name, true);
 	struct value_ptr *vp;
 	VALUE vp_data = TypedData_Make_Struct(rb_cObject, struct value_ptr, &value_ptr_data_type, vp);
 	vp->value = RB_ALLOC(VALUE);
@@ -285,7 +298,7 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 		is_readonly = true;
 	}
 
-	gvars_define_virtual_method(self, &name, backing, getter, setter, kind, is_readonly, passname);
+	gvars_define_virtual_method(self, &name, backing, getter, setter, kind, is_readonly);
 
 	return name; //TODO: ID2SYM(id)
 }
@@ -316,12 +329,13 @@ Init_gvars(void)
 	rb_define_singleton_method(gvars_module, "each", gvars_f_each, 0);
 	rb_define_singleton_method(gvars_module, "to_h", gvars_f_to_h, 0);
 
+	rb_define_singleton_method(gvars_module, "[]", gvars_f_global_variable_aref, 1);
+	rb_define_singleton_method(gvars_module, "[]=", gvars_f_global_variable_aset, 2);
+
 	// Aliases
 	VALUE gvars_singleton = rb_singleton_class(gvars_module);
 	rb_define_alias(gvars_singleton, "get", "global_variable_get");
-	rb_define_alias(gvars_singleton, "[]", "global_variable_get");
 	rb_define_alias(gvars_singleton, "set", "global_variable_set");
-	rb_define_alias(gvars_singleton, "[]=", "global_variable_set");
 	rb_define_alias(gvars_singleton, "alias", "alias_global_variable");
 	rb_define_alias(gvars_singleton, "list", "global_variables");
 	rb_define_alias(gvars_singleton, "virtual", "define_virtual_method");

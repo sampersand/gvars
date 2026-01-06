@@ -26,32 +26,32 @@ class TestGVars < Minitest::Test
 
   def test_get_normal
     $test_global_variable_get = :foo
-
     assert_alias GVars, :global_variable_get, :get
-    assert_alias GVars, :global_variable_get, :[]
 
     with_interned :$test_global_variable_get do |gvar|
       assert_equal :foo, GVars.get(gvar)
+      assert_equal :foo, GVars[gvar]
     end
 
     # Ignore warnings about undefined gvars
     capture_io do
       with_interned :$test_global_variable_unset do |gvar|
         assert_nil GVars.get(gvar)
+        assert_nil GVars[gvar]
       end
     end
 
-    # Require a `$` beforehand
-    with_interned :not_a_gvar do |gvar|
-      assert_raises NameError do
-        GVars.get(gvar)
-      end
+    with_interned :test_global_variable_get do |gvar|
+      # Require a `$` beforehand
+      assert_raises NameError do GVars.get(gvar) end
+
+      # `[]` doesn't
+      assert_equal :foo, GVars[gvar]
     end
 
     # Make sure it only accepts `interned`s
-    assert_raises TypeError do
-      GVars.get(Blankity::To.s('$foo'))
-    end
+    assert_raises TypeError do GVars.get(Blankity::To.s('$foo')) end
+    assert_raises TypeError do GVars[Blankity::To.s('$foo')] end
   end
 
   # Make sure the special scope-local globals (regex ones and `$_`) work
@@ -92,25 +92,24 @@ class TestGVars < Minitest::Test
 
   def test_set_normal
     assert_alias GVars, :global_variable_set, :set
-    assert_alias GVars, :global_variable_set, :[]=
 
     # Also tests unset ones, as the initial round will be unset
     with_interned :$test_global_variable_set do |gvar|
       # Make sure it's set to the value it's supplied
       assert_equal :bar, GVars.set(gvar, :bar)
+      assert_equal :bar, GVars.[]=(gvar, :bar)
     end
 
     # Require a `$` beforehand
-    with_interned :not_a_gvar do |gvar|
-      assert_raises NameError do
-        GVars.set(gvar, :bar)
-      end
+    with_interned :test_global_variable_set do |gvar|
+      assert_raises NameError do GVars.set(gvar, :baz) end
+      assert_equal :baz, GVars.[]=(gvar, :baz)
+      assert_equal :baz, $test_global_variable_set
     end
 
     # Make sure it only accepts `interned`s
-    assert_raises TypeError do
-      GVars.set(Blankity::To.s('$foo'), :bar)
-    end
+    assert_raises TypeError do GVars.set(Blankity::To.s('$foo'), :bar) end
+    assert_raises TypeError do GVars.[]=(Blankity::To.s('$foo'), :bar) end
   end
 
   def test_set_scope_local

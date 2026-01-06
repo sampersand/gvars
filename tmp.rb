@@ -1,6 +1,15 @@
 require 'gvars'
 p GVars::VERSION
 
+require 'optparse'
+OptParse.new do |op|
+  op.on '--timeout=X', 'the timeout'
+  op.parse %w[--timeout 34.5], into: GVars
+end
+
+p $timeout
+
+__END__
 h = {}
 GVars.virtual(:$-e, &h.method(:[]).curry(1).<<(:$-e))
 # GVars.virtual(:$-e,) { $-W.to_s }
