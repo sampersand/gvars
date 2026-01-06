@@ -4,6 +4,22 @@ p GVars::VERSION
 require 'optparse'
 trace_var :$timeout do p it end
 
+GVars.virtual(:$hello,
+  getter: '[Regexp.last_match[1], $~]',
+  setter: 'puts("assigned: #{$__value__}")')
+
+def foo
+  /(a)/ =~ 'heallo'
+  p $hello
+  $hello = 9
+end
+
+foo
+["a", #<MatchData "a" 1:"a">]
+assigned: 9
+
+
+__END__
 GVars.virtual(:$timeout,
   getter: ->{ 'hello' },
   setter: ->val { puts "setting: #{val}" },

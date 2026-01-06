@@ -141,12 +141,33 @@ static const rb_data_type_t gvars_type = {
 static VALUE gvars_virtual_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	// If it's a string, eval it in the current context. Not great for ZJIT...
+	if (RB_TYPE_P(gv->getter, T_STRING)) {
+		return rb_funcallv(rb_binding_new(), rb_intern("eval"), 1, &gv->getter);
+	}
+
 	return rb_proc_call(gv->getter, rb_ary_new());
 }
 
 static void gvars_virtual_var_setter(VALUE val, ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+
+	// If it's a string, eval it in the current context. Not great for ZJIT...
+	if (RB_TYPE_P(gv->setter, T_STRING)) {
+		static VALUE virtual_setter = Qundef;
+		// Don't actually register the variable until we're doing a virtual
+		// string setter.
+		if (virtual_setter == Qundef) {
+			rb_define_variable("$__value__", &virtual_setter);
+		}
+		virtual_setter = val;
+
+		rb_funcallv(rb_binding_new(), rb_intern("eval"), 1, &gv->setter);
+		return;
+	}
+
 	rb_proc_call(gv->setter, rb_ary_new_from_args(1, val));
 }
 
@@ -238,7 +259,13 @@ enum virtual_method_keywords {
 
 static ID virtual_method_keyword_ids[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_HOOKED];
 
-static VALUE convert_to_proc(const char *name, VALUE input) {
+static VALUE convert_to_proc(const char *name, VALUE input, bool is_hooked) {
+	// Convert getter to a proc, unless it's a string (to support the "always eval" case)
+	if (RB_TYPE_P(input, T_STRING) && !is_hooked) {
+		// Virtual functions can be strings, which are evaluated.
+		return input;
+	}
+
 	VALUE proc = rb_convert_type(input, T_DATA, "Proc", "to_proc");
 
 	if (NIL_P(proc) || !rb_obj_is_proc(proc)) {
@@ -266,13 +293,13 @@ gvars_f_define_virtual_method_foo(int argc, VALUE *argv, VALUE self, bool is_hoo
 		getter = (rb_need_block(), rb_block_proc());
 	} else {
 		if (rb_block_given_p()) rb_warn("block parameter unused when getter is supplied");
-		getter = convert_to_proc("getter", getter);
+		getter = convert_to_proc("getter", getter, is_hooked);
 	}
 
 	if (setter == Qundef) {
 		setter = Qnil;
 	} else {
-		setter = convert_to_proc("setter", setter);
+		setter = convert_to_proc("setter", setter, is_hooked);
 	}
 
 	enum virtual_kind kind = GVARS_VIRTUAL_KIND_VIRTUAL;
