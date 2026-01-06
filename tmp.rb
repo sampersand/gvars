@@ -1,10 +1,14 @@
 require 'gvars'
 p GVars::VERSION
 
-GVars.virtual(:$foo) { p "bar" }
-# GVars.virtual(:$foo) { p "foo" }
-# $foo
-print($foo)
+100.times do
+  GVars.virtual(:$foo) { p "bar" }
+  # GVars.virtual(:$foo) { p "foo" }
+  # $foo
+  p($foo)
+  p GVars.instance_variable_get(:@vars)
+  GC.start
+end
 # GVars.virtual(:$bar, proc{ p "bar" })
 # GVars.virtual(:$baz, proc{ p "bar" }, proc { p "baz: #{_1}"})
 
