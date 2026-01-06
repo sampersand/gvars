@@ -198,7 +198,7 @@ enum virtual_kind {
 };
 
 static void
-gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter, VALUE setter, enum virtual_kind kind)
+gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter, VALUE setter, enum virtual_kind kind, int readonly_special)
 {
 	char *name_str = get_global_name(name);
 	VALUE getter_proc, setter_proc;
@@ -208,7 +208,7 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 		rb_raise(rb_eTypeError, "wrong getter type %s (expected Proc)", rb_obj_classname(getter_proc));
 	}
 
-	if (NIL_P(setter) || setter == Qundef) {
+	if (NIL_P(setter)) {
 		setter_proc = Qnil;
 	} else {
 		setter_proc = rb_convert_type(setter, T_DATA, "Proc", "to_proc");
@@ -221,7 +221,6 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 	VALUE vp_data = TypedData_Make_Struct(rb_cObject, struct value_ptr, &value_ptr_data_type, vp);
 	vp->value = RB_ALLOC(VALUE);
 	*vp->value = gvars_virtual_var_alloc(backing, getter, setter);
-
 
 	rb_gvar_getter_t *getter_meth;
 	rb_gvar_setter_t *setter_meth;
@@ -236,15 +235,17 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 		getter_meth = gvars_hooked_initial_var_getter;
 		setter_meth = setter_proc == Qnil ? gvars_hooked_initial_var_setter_noproc : gvars_hooked_initial_var_setter_proc;
 		break;
+
 	case GVARS_VIRTUAL_KIND_STATE:
 		getter_meth = gvars_hooked_state_var_getter;
 		setter_meth = setter_proc == Qnil ? gvars_hooked_state_var_setter_noproc : gvars_hooked_state_var_setter_proc;
 		break;
+
 	default:
 		rb_bug("oops");
 	}
 
-	if (setter == Qundef) setter_meth = rb_gvar_readonly_setter;
+	if (readonly_special) setter_meth = rb_gvar_readonly_setter;
 
 	rb_define_hooked_variable(name_str, vp->value, getter_meth, setter_meth);
 
@@ -256,8 +257,8 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 static VALUE
 gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 {
-	VALUE name, backing = Qundef, getter, setter, opts_hash, opts[2];
-    ID keyword_ids[2];
+	VALUE name, backing = Qundef, getter, setter, opts_hash, opts[3];
+    ID keyword_ids[3];
     keyword_ids[0] = rb_intern("initial");
     keyword_ids[1] = rb_intern("state");
     keyword_ids[2] = rb_intern("readonly");
@@ -280,8 +281,6 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 		rb_bug("oops");
 	}
 
-	if (setter == Qnil) setter = Qundef;
-
 	enum virtual_kind kind = GVARS_VIRTUAL_KIND_VIRTUAL;
 	rb_get_kwargs(opts_hash, keyword_ids, 0, 3, opts);
 
@@ -302,10 +301,11 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 			rb_raise(rb_eArgError, "'readonly: true' may not be supplied when a setter proc is supplied");
 		}
 
-		setter = Qundef;
+		setter = Qnil;
+		is_readonly = true;
 	}
 
-	gvars_define_virtual_method(self, &name, backing, getter, setter, kind);
+	gvars_define_virtual_method(self, &name, backing, getter, setter, kind, is_readonly);
 
 	return name; //TODO: ID2SYM(id)
 }
