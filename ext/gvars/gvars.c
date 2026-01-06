@@ -99,7 +99,6 @@ static const rb_data_type_t value_ptr_data_type = {
 
 
 struct gvars_virtual_var {
-	int pass_args;
 	VALUE backing, getter, setter;
 };
 
@@ -129,18 +128,14 @@ static VALUE virtual_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
     TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
 
-    if (gv->pass_args) {
-		return rb_proc_call_kw(gv->getter, rb_ary_new3(1, rb_id2str(id)), RB_NO_KEYWORDS);
-    } else {
-		return rb_proc_call_kw(gv->getter, rb_ary_new(), RB_NO_KEYWORDS);
-	}
+	return rb_proc_call_kw(gv->getter, rb_ary_new(), RB_NO_KEYWORDS);
 }
 
 static void virtual_var_setter(VALUE val, ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
     TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
 
-	rb_proc_call_kw(gv->setter, rb_ary_new3(2, rb_id2str(id), val), RB_NO_KEYWORDS);
+	rb_proc_call_kw(gv->setter, rb_ary_new3(1, val), RB_NO_KEYWORDS);
 }
 
 static VALUE gvars_virtual_var_alloc(VALUE backing, VALUE getter, VALUE setter) {
@@ -149,8 +144,6 @@ static VALUE gvars_virtual_var_alloc(VALUE backing, VALUE getter, VALUE setter) 
 	gv->backing = backing;
 	gv->getter = getter;
 	gv->setter = setter;
-	gv->pass_args = 0;
-	dbg("%p", gv);
 	return gvar_ty;
 }
 
