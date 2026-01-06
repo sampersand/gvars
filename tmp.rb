@@ -1,6 +1,18 @@
 require 'gvars'
 p GVars::VERSION
 
+h = {}
+GVars.virtual(:$-e, &h.method(:[]).curry(1).<<(:$-e))
+# GVars.virtual(:$-e,) { $-W.to_s }
+# $-v = false
+# p $-e
+# $-v = true
+# p $-e
+# $-v = nil
+p $-e
+
+exit
+
 100.times do
   GVars.virtual(:$foo) { p "bar" }
   # GVars.virtual(:$foo) { p "foo" }
@@ -20,8 +32,26 @@ fail unless 11 == $bar1
 
 GVars.virtual(:$bar2, state: 'a') { it.succ!.dup }
 fail unless ['b', 'c', 'd'] == [$bar2, $bar2, $bar2]
-$bar2 = 10
-fail unless 11 == $bar2
+
+
+GVars.virtual(:$lol) { @x = 3 }
+class Thing
+  def doit
+    $lol
+    p @x
+  end
+end
+Thing.new.doit
+p @x
+      trace_var :$bar, proc {|v| puts "$_ is now '#{v}'" }
+      $bar = 2
+      $bar = 3
+      trace_var :$_, proc {|v| puts "$_ is now '#{v}'" }
+    $_ = "hello"
+      $_ = ' there'
+
+# $bar2 = 10
+# fail unless 11 == $bar2
 
 # GVars.virtual(:$bar, proc{ p "bar" })
 # GVars.virtual(:$baz, proc{ p "bar" }, proc { p "baz: #{_1}"})

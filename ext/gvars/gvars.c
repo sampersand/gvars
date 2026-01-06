@@ -64,7 +64,7 @@ gvars_f_each(VALUE self)
 	VALUE gvars = gvars_f_global_variables(self);
 	for (long i = 0; i < RARRAY_LEN(gvars); i++) {
 		VALUE key = RARRAY_AREF(gvars, i);
-		rb_yield(rb_ary_new3(2, key, gvars_f_global_variable_get(self, key)));
+		rb_yield(rb_ary_new_from_args(2, key, gvars_f_global_variable_get(self, key)));
 	}
 
 	return self;
@@ -128,25 +128,25 @@ static const rb_data_type_t gvars_type = {
 static VALUE gvars_virtual_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
-	return rb_proc_call_kw(gv->getter, rb_ary_new(), RB_NO_KEYWORDS);
+	return rb_proc_call(gv->getter, rb_ary_new());
 }
 
 static void gvars_virtual_var_setter(VALUE val, ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
-	rb_proc_call_kw(gv->setter, rb_ary_new3(1, val), RB_NO_KEYWORDS);
+	rb_proc_call(gv->setter, rb_ary_new_from_args(1, val));
 }
 
 static VALUE gvars_hooked_state_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
-	return rb_proc_call_kw(gv->getter, rb_ary_new3(1, gv->backing), RB_NO_KEYWORDS);
+	return rb_proc_call(gv->getter, rb_ary_new_from_args(1, gv->backing));
 }
 
 static VALUE gvars_hooked_initial_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
-	return gv->backing = rb_proc_call_kw(gv->getter, rb_ary_new3(1, gv->backing), RB_NO_KEYWORDS);
+	return gv->backing = rb_proc_call(gv->getter, rb_ary_new_from_args(1, gv->backing));
 }
 
 static void gvars_hooked_var_setter_noproc(VALUE val, ID id, VALUE *data) {
@@ -158,9 +158,8 @@ static void gvars_hooked_var_setter_noproc(VALUE val, ID id, VALUE *data) {
 static void gvars_hooked_var_setter_proc(VALUE val, ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
 	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
-	gv->backing = rb_proc_call_kw(gv->setter, rb_ary_new3(2, val, gv->backing), RB_NO_KEYWORDS);
+	gv->backing = rb_proc_call(gv->setter, rb_ary_new_from_args(2, val, gv->backing));
 }
-
 
 static VALUE gvars_virtual_var_alloc(VALUE backing, VALUE getter, VALUE setter) {
 	struct gvars_virtual_var *gv;
@@ -209,19 +208,34 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 
 	rb_define_hooked_variable(name_str, vp->value, getter_meth, setter_meth);
 
-	VALUE hash = rb_iv_get(gvars_module, "@vars");
+	VALUE hash = rb_iv_get(gvars_module, "vars");
 	VALUE namesym = rb_str_new_cstr(name_str);
 	rb_hash_aset(hash, namesym, vp_data);
+}
+
+enum virtual_method_keywords {
+	VIRTUAL_METHOD_KEYWORDS_INITIAL,
+	VIRTUAL_METHOD_KEYWORDS_STATE,
+	VIRTUAL_METHOD_KEYWORDS_READONLY,
+	LENGTH_OF_VIRTUAL_METHOD_KEYWORDS,
+};
+
+static ID virtual_method_keyword_ids[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS];
+
+static VALUE convert_to_proc(const char *name, VALUE input) {
+	VALUE proc = rb_convert_type(input, T_DATA, "Proc", "to_proc");
+
+	if (NIL_P(proc) || !rb_obj_is_proc(proc)) {
+		rb_raise(rb_eTypeError, "wrong %s type %s (expected Proc)", name, rb_obj_classname(proc));
+	}
+
+	return proc;
 }
 
 static VALUE
 gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 {
-	VALUE name, backing, getter, setter, opts_hash, opts[3];
-    ID keyword_ids[3];
-    keyword_ids[0] = rb_intern("initial");
-    keyword_ids[1] = rb_intern("state");
-    keyword_ids[2] = rb_intern("readonly");
+	VALUE name, backing, getter, setter, opts_hash, opts[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS];
 
 	switch (rb_scan_args(argc, argv, "12:", &name, &getter, &setter, &opts_hash)) {
 	case 1:
@@ -241,35 +255,28 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 		rb_bug("oops");
 	}
 
-	getter = rb_convert_type(getter, T_DATA, "Proc", "to_proc");
-	if (NIL_P(getter) || !rb_obj_is_proc(getter)) {
-		rb_raise(rb_eTypeError, "wrong getter type %s (expected Proc)", rb_obj_classname(getter));
-	}
-
-	if (!NIL_P(setter)) {
-		setter = rb_convert_type(setter, T_DATA, "Proc", "to_proc");
-		if (NIL_P(setter) || !rb_obj_is_proc(setter)) {
-			rb_raise(rb_eTypeError, "wrong setter type %s (expected Proc)", rb_obj_classname(setter));
-		}
-	}
+	getter = convert_to_proc("getter", getter);
+	if (!NIL_P(setter)) setter = convert_to_proc("setter", setter);
 
 	enum virtual_kind kind = GVARS_VIRTUAL_KIND_VIRTUAL;
-	rb_get_kwargs(opts_hash, keyword_ids, 0, 3, opts);
-	if (opts[0] != Qundef) {
-		if (opts[1] != Qundef) {
+	rb_get_kwargs(opts_hash, virtual_method_keyword_ids, 0, LENGTH_OF_VIRTUAL_METHOD_KEYWORDS, opts);
+
+	if (opts[VIRTUAL_METHOD_KEYWORDS_INITIAL] != Qundef) {
+		if (opts[VIRTUAL_METHOD_KEYWORDS_STATE] != Qundef) {
 			rb_raise(rb_eArgError, "only one of 'initial' or 'state' may be supplied");
 		}
-		backing = opts[0];
+		backing = opts[VIRTUAL_METHOD_KEYWORDS_INITIAL];
 		kind = GVARS_VIRTUAL_KIND_INITIAL;
-	} else if (opts[1] != Qundef) {
-		backing = opts[1];
+	} else if (opts[VIRTUAL_METHOD_KEYWORDS_STATE] != Qundef) {
+		backing = opts[VIRTUAL_METHOD_KEYWORDS_STATE];
 		kind = GVARS_VIRTUAL_KIND_STATE;
 	} else {
 		backing = Qnil;
 	}
 
-	bool is_readonly = false;
-	if (opts[2] != Qundef && RTEST(opts[2])) { // sadly no bool expected :-/
+ 	// sadly no bool expected :-/
+	bool is_readonly = opts[VIRTUAL_METHOD_KEYWORDS_READONLY] != Qundef && RTEST(opts[VIRTUAL_METHOD_KEYWORDS_READONLY]);
+	if (is_readonly) {
 		if (setter != Qnil) {
 			rb_raise(rb_eArgError, "'readonly: true' may not be supplied when a setter proc is supplied");
 		}
@@ -278,7 +285,7 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 		is_readonly = true;
 	}
 
-	gvars_define_virtual_method(self, &name, backing, getter, setter, kind, is_readonly);
+	gvars_define_virtual_method(self, &name, backing, getter, setter, kind, is_readonly, passname);
 
 	return name; //TODO: ID2SYM(id)
 }
@@ -287,7 +294,11 @@ void
 Init_gvars(void)
 {
 	gvars_module = rb_define_module("GVars");
-	rb_ivar_set(gvars_module, rb_intern("@vars"), rb_hash_new());
+	rb_ivar_set(gvars_module, rb_intern("vars"), rb_hash_new());
+
+    virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_INITIAL] = rb_intern("initial");
+    virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_STATE] = rb_intern("state");
+    virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_READONLY] = rb_intern("readonly");
 
 	// Define module-level functions that can be used as mixins
 	rb_define_module_function(gvars_module, "global_variable_get", gvars_f_global_variable_get, 1);
