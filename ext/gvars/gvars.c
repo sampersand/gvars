@@ -227,13 +227,16 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 }
 
 enum virtual_method_keywords {
+	VIRTUAL_METHOD_KEYWORDS_GETTER,
+	VIRTUAL_METHOD_KEYWORDS_SETTER,
+	VIRTUAL_METHOD_KEYWORDS_READONLY,
 	VIRTUAL_METHOD_KEYWORDS_INITIAL,
 	VIRTUAL_METHOD_KEYWORDS_STATE,
-	VIRTUAL_METHOD_KEYWORDS_READONLY,
-	LENGTH_OF_VIRTUAL_METHOD_KEYWORDS,
+	LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_HOOKED = VIRTUAL_METHOD_KEYWORDS_STATE+1,
+	LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_VIRTUAL = VIRTUAL_METHOD_KEYWORDS_READONLY+1,
 };
 
-static ID virtual_method_keyword_ids[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS];
+static ID virtual_method_keyword_ids[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_HOOKED];
 
 static VALUE convert_to_proc(const char *name, VALUE input) {
 	VALUE proc = rb_convert_type(input, T_DATA, "Proc", "to_proc");
@@ -246,43 +249,45 @@ static VALUE convert_to_proc(const char *name, VALUE input) {
 }
 
 static VALUE
-gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
+gvars_f_define_virtual_method_foo(int argc, VALUE *argv, VALUE self, bool is_hooked)
 {
-	VALUE name, backing, getter, setter, opts_hash, opts[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS];
+	VALUE name, backing, getter, setter, opts_hash, opts[LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_HOOKED] = {
+		Qundef, Qundef, Qundef, Qundef, Qundef };
 
-	switch (rb_scan_args(argc, argv, "12:", &name, &getter, &setter, &opts_hash)) {
-	case 1:
+	rb_scan_args(argc, argv, "10:", &name, &opts_hash);
+	rb_get_kwargs(opts_hash, virtual_method_keyword_ids, 0,
+		(is_hooked ? LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_HOOKED : LENGTH_OF_VIRTUAL_METHOD_KEYWORDS_VIRTUAL),
+		opts);
+
+	getter = opts[VIRTUAL_METHOD_KEYWORDS_GETTER];
+	setter = opts[VIRTUAL_METHOD_KEYWORDS_SETTER];
+
+	if (getter == Qundef) {
 		getter = (rb_need_block(), rb_block_proc());
-		setter = Qnil;
-		break;
-
-	case 2:
-		setter = Qnil;
-
-	case 3:
-		if (rb_block_given_p()) {
-			rb_warn("given block not used");
-		}
-		break;
-	default:
-		rb_bug("oops");
+	} else {
+		if (rb_block_given_p()) rb_warn("block parameter unused when getter is supplied");
+		getter = convert_to_proc("getter", getter);
 	}
 
-	getter = convert_to_proc("getter", getter);
-	if (!NIL_P(setter)) setter = convert_to_proc("setter", setter);
+	if (setter == Qundef) {
+		setter = Qnil;
+	} else {
+		setter = convert_to_proc("setter", setter);
+	}
 
 	enum virtual_kind kind = GVARS_VIRTUAL_KIND_VIRTUAL;
-	rb_get_kwargs(opts_hash, virtual_method_keyword_ids, 0, LENGTH_OF_VIRTUAL_METHOD_KEYWORDS, opts);
 
 	if (opts[VIRTUAL_METHOD_KEYWORDS_INITIAL] != Qundef) {
 		if (opts[VIRTUAL_METHOD_KEYWORDS_STATE] != Qundef) {
-			rb_raise(rb_eArgError, "only one of 'initial' or 'state' may be supplied");
+			rb_raise(rb_eArgError, "exactly one of 'initial' or 'state' may be supplied");
 		}
 		backing = opts[VIRTUAL_METHOD_KEYWORDS_INITIAL];
 		kind = GVARS_VIRTUAL_KIND_INITIAL;
 	} else if (opts[VIRTUAL_METHOD_KEYWORDS_STATE] != Qundef) {
 		backing = opts[VIRTUAL_METHOD_KEYWORDS_STATE];
 		kind = GVARS_VIRTUAL_KIND_STATE;
+	} else if (is_hooked) {
+		rb_raise(rb_eArgError, "exactly one of 'initial' or 'state' may be supplied");
 	} else {
 		backing = Qnil;
 	}
@@ -301,6 +306,18 @@ gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
 	gvars_define_virtual_method(self, &name, backing, getter, setter, kind, is_readonly);
 
 	return name; //TODO: ID2SYM(id)
+
+}
+static VALUE
+gvars_f_define_virtual_method(int argc, VALUE *argv, VALUE self)
+{
+	return gvars_f_define_virtual_method_foo(argc, argv, self, false);
+}
+
+static VALUE
+gvars_f_define_hooked_method(int argc, VALUE *argv, VALUE self)
+{
+	return gvars_f_define_virtual_method_foo(argc, argv, self, true);
 }
 
 void
@@ -309,6 +326,8 @@ Init_gvars(void)
 	gvars_module = rb_define_module("GVars");
 	rb_ivar_set(gvars_module, rb_intern("vars"), rb_hash_new());
 
+    virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_GETTER] = rb_intern("getter");
+    virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_SETTER] = rb_intern("setter");
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_INITIAL] = rb_intern("initial");
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_STATE] = rb_intern("state");
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_READONLY] = rb_intern("readonly");
@@ -323,6 +342,7 @@ Init_gvars(void)
 
 	// Don't make it an instance method, cause we don't want it included
 	rb_define_singleton_method(gvars_module, "define_virtual_method", gvars_f_define_virtual_method, -1);
+	rb_define_singleton_method(gvars_module, "define_hooked_method", gvars_f_define_hooked_method, -1);
 
 	// Enumerable methods
 	rb_extend_object(gvars_module, rb_mEnumerable);
@@ -339,4 +359,5 @@ Init_gvars(void)
 	rb_define_alias(gvars_singleton, "alias", "alias_global_variable");
 	rb_define_alias(gvars_singleton, "list", "global_variables");
 	rb_define_alias(gvars_singleton, "virtual", "define_virtual_method");
+	rb_define_alias(gvars_singleton, "hooked", "define_hooked_method");
 }

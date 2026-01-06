@@ -2,6 +2,24 @@ require 'gvars'
 p GVars::VERSION
 
 require 'optparse'
+trace_var :$timeout do p it end
+
+GVars.virtual(:$timeout,
+  getter: ->{ 'hello' },
+  setter: ->val { puts "setting: #{val}" },
+  readonly: false)
+
+GVars.hooked(:$COUNTER,
+  getter: :succ.to_proc,
+  setter: nil)
+  setter: ->val { puts "setting: #{val}" },
+  initial: 10)
+
+p $timeout1
+p $timeout1
+
+__END__
+
 OptParse.new do |op|
   op.on '--timeout=X', 'the timeout'
   op.parse %w[--timeout 34.5], into: GVars
