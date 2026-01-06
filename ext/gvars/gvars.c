@@ -126,14 +126,14 @@ static const rb_data_type_t gvars_type = {
 
 static VALUE virtual_var_getter(ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
-    TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
 
 	return rb_proc_call_kw(gv->getter, rb_ary_new(), RB_NO_KEYWORDS);
 }
 
 static void virtual_var_setter(VALUE val, ID id, VALUE *data) {
 	struct gvars_virtual_var *gv;
-    TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
+	TypedData_Get_Struct(*data, struct gvars_virtual_var, &gvars_type, gv);
 
 	rb_proc_call_kw(gv->setter, rb_ary_new3(1, val), RB_NO_KEYWORDS);
 }
@@ -174,9 +174,9 @@ gvars_define_virtual_method(VALUE self, VALUE *name, VALUE backing, VALUE getter
 
 	rb_define_hooked_variable(name_str, vp->value, virtual_var_getter, setter_proc == Qnil ? rb_gvar_readonly_setter : virtual_var_setter);
 
-  	VALUE hash = rb_iv_get(gvars_module, "@vars");
-  	VALUE namesym = rb_str_new_cstr(name_str);
-  	rb_hash_aset(hash, namesym, vp_data);
+	VALUE hash = rb_iv_get(gvars_module, "@vars");
+	VALUE namesym = rb_str_new_cstr(name_str);
+	rb_hash_aset(hash, namesym, vp_data);
 }
 
 static VALUE
@@ -211,7 +211,7 @@ void
 Init_gvars(void)
 {
 	gvars_module = rb_define_module("GVars");
-  	rb_ivar_set(gvars_module, rb_intern("@vars"), rb_hash_new());
+	rb_ivar_set(gvars_module, rb_intern("@vars"), rb_hash_new());
 
 	// Define module-level functions that can be used as mixins
 	rb_define_module_function(gvars_module, "global_variable_get", gvars_f_global_variable_get, 1);
