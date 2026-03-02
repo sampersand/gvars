@@ -31,8 +31,8 @@ puts $TIME.monday? #=> true
 
 # You can also provide a custom setter
 GVars.virtual(:$PWD,
-	getter: ->{ Dir.pwd },
-	setter: ->new{ Dir.chdir(new) })
+  getter: ->{ Dir.pwd },
+  setter: ->new{ Dir.chdir(new) })
 $PWD = '/tmp'
 p $PWD #=> "/private/tmp" (macOS symlinks `/tmp` to `/private/tmp`)
 ```
@@ -51,9 +51,9 @@ p $COUNTER #=> 11
 # You can also specify a state, which is given to the getter (and setter),
 # but isn't updated by the getter's return value.
 GVars.hooked(:$RAND,
-	state: Random.new,
-	getter: ->random{ random.rand },
-	setter: ->(value,random){ random.srand(value) }) # doesn't actually work.. `Random#srand` isn't a thing
+  state: Random.new,
+  getter: ->random{ random.rand },
+  setter: ->(value,random){ random.srand(value) }) # doesn't actually work.. `Random#srand` isn't a thing
 ```
 
 ## `OptParse` support
@@ -64,19 +64,19 @@ require 'optparse'
 require 'gvars'
 
 OptParse.new do |op|
-	op.on '--[no-]-read'
-	op.on '--[no-]-write'
-	op.on '--[no-]-execute'
-	op.on '--timeout=SECONDS', Float
-	op.on '--cache-dir=PATH'
+  op.on '--[no-]read'
+  op.on '--[no-]write'
+  op.on '--[no-]execute'
+  op.on '--timeout=SECONDS', Float
+  op.on '--cache-dir=PATH'
 
-	op.parse!(
-		%w[--read --no-execute --timeout=10 --cache-dir=/foo/bar],
-		into: GVars
-	)
+  op.parse!(
+    %w[--read --no-execute --timeout=10 --cache-dir=/foo/bar],
+    into: GVars
+  )
 
-	p [$read, $write, $execute, $timeout, $cache_dir]
-	#=> [true, nil, false, 10.0, "/foo/bar"]
+  p [$read, $write, $execute, $timeout, $cache_dir]
+  #=> [true, nil, false, 10.0, "/foo/bar"]
 end
 ```
 
