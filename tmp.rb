@@ -1,3 +1,22 @@
+require 'optparse'
+require 'gvars'
+
+OptParse.new do |op|
+  op.on '--[no-]read'
+  op.on '--[no-]write'
+  op.on '--[no-]execute'
+  op.on '--timeout=SECONDS', Float
+  op.on '--cache-dir=PATH'
+
+  op.parse!(
+    %w[--read --no-execute --timeout=10 --cache-dir=/foo/bar],
+    into: GVars
+  )
+
+  p [$read, $write, $execute, $timeout, $cache_dir]
+end
+
+__END__
 require 'gvars'
 p GVars::VERSION
 

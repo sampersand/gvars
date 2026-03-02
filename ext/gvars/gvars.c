@@ -7,16 +7,22 @@ VALUE gvars_module;
 //
 // for checking, it makes that `name` starts with `$`. This isn't really required, as ruby supports
 // globals that don't start with `$` (but doesn't expose any methods to interact with them)
-static char *get_global_name(VALUE *name, bool raise) {
+static char *get_global_name(VALUE *name, bool translate) {
 	// If `name` is a symbol, get its backing string
 	if (RB_SYMBOL_P(*name)) {
 		*name = rb_sym2str(*name);
 	}
 
+	if (translate) {
+		// Convert from `-` to `_`
+		*name = rb_funcall(StringValue(*name), rb_intern("tr"), 2,
+			rb_str_new_cstr("-"), rb_str_new_cstr("_"));
+	}
+
 	char *namestr = StringValueCStr(*name);
 
 	// Ensure it starts with a dollar sign
-	if (raise && namestr[0] != '$') {
+	if (!translate && namestr[0] != '$') {
 		rb_raise(rb_eNameError, "'%s' is not allowed as a global variable name", namestr);
 	}
 
@@ -24,29 +30,30 @@ static char *get_global_name(VALUE *name, bool raise) {
 }
 
 
-static VALUE
-gvars_f_global_variable_get(VALUE self, VALUE name)
-{
-	return rb_gv_get(get_global_name(&name, true));
-}
 
 static VALUE
-gvars_f_global_variable_aref(VALUE self, VALUE name)
+gvars_f_global_variable_get(VALUE self, VALUE name)
 {
 	return rb_gv_get(get_global_name(&name, false));
 }
 
 static VALUE
+gvars_f_global_variable_aref(VALUE self, VALUE name)
+{
+	return rb_gv_get(get_global_name(&name, true));
+}
+
+static VALUE
 gvars_f_global_variable_set(VALUE self, VALUE name, VALUE value)
 {
-	return rb_gv_set(get_global_name(&name, true), value);
+	return rb_gv_set(get_global_name(&name, false), value);
 }
 
 
 static VALUE
 gvars_f_global_variable_aset(VALUE self, VALUE name, VALUE value)
 {
-	return rb_gv_set(get_global_name(&name, false), value);
+	return rb_gv_set(get_global_name(&name, true), value);
 }
 
 static VALUE
@@ -268,6 +275,7 @@ static VALUE convert_to_proc(const char *name, VALUE input, bool is_hooked) {
 
 	VALUE proc = rb_convert_type(input, T_DATA, "Proc", "to_proc");
 
+// Check_Type
 	if (NIL_P(proc) || !rb_obj_is_proc(proc)) {
 		rb_raise(rb_eTypeError, "wrong %s type %s (expected Proc)", name, rb_obj_classname(proc));
 	}

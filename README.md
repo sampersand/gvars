@@ -56,6 +56,30 @@ GVars.hooked(:$RAND,
 	setter: ->(value,random){ random.srand(value) }) # doesn't actually work.. `Random#srand` isn't a thing
 ```
 
+## `OptParse` support
+If you've ever wanted to use `OptParse` to parse command line options _directly_ into global variables, look no further! `GVars.[]` and `GVars.[]=` act similarly to `GVars.get` and `GVars.set`, except they allow you to omit the leading `$`, and all `-` are translated to `_`:
+
+```ruby
+require 'optparse'
+require 'gvars'
+
+OptParse.new do |op|
+	op.on '--[no-]-read'
+	op.on '--[no-]-write'
+	op.on '--[no-]-execute'
+	op.on '--timeout=SECONDS', Float
+	op.on '--cache-dir=PATH'
+
+	op.parse!(
+		%w[--read --no-execute --timeout=10 --cache-dir=/foo/bar],
+		into: GVars
+	)
+
+	p [$read, $write, $execute, $timeout, $cache_dir]
+	#=> [true, nil, false, 10.0, "/foo/bar"]
+end
+```
+
 ## Known problems
 1. Unfortunately, Ruby's C-level `rb_gv_get` / `rb_gv_set` methods only let you manipulate ASCII identifiers... A fix _may_ be possible, but it'll have to resort to the `eval` hack.
 2. Because `$_`, and regex variables (`$~`, ``$` ``, etc) are all local to the function they're called within, you can't actually access them from within procs; As a workaround, you can pass a string that'll be `eval`d each time, but it's not terribly efficient. I don't know if there's a better solution
