@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    gvars (0.5.0)
+    gvars (0.10.1)
 
 GEM
   remote: https://rubygems.org/
@@ -18,7 +18,7 @@ DEPENDENCIES
 
 CHECKSUMS
   blankity (0.11.0) sha256=606bab994dfd02e8282ea6cbc475b746c953bc473ab6d091b59860827eefaa49
-  gvars (0.5.0)
+  gvars (0.10.1)
 
 BUNDLED WITH
   4.0.3

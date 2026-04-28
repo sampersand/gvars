@@ -1,6 +1,9 @@
 module GVars
   VERSION: String
 
+  attr_accessor self.debug: bool?
+  def self.debug?: () -> bool
+
   # Mixin methods
   def self?.global_variable_get: (interned name) -> untyped
   def self?.global_variable_set: [T] (interned name, T value) -> T

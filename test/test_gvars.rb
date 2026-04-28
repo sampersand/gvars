@@ -213,4 +213,43 @@ class TestGVars < Minitest::Test
       assert_equal 'LOL', GVars.to_h[:$_]
     end
   end
+
+  def test_debug
+    old_debug, old_gvars_debug = $DEBUG, GVars.debug
+
+    # Make sure `.debug = nil` is the default
+    assert_nil GVars.debug
+
+    # Make sure `.debug = nil` respects `$DEBUG`
+    $DEBUG = false
+    assert_nil GVars.debug
+    assert_equal false, GVars.debug?
+
+    $DEBUG = true
+    assert_nil GVars.debug
+    assert_equal true, GVars.debug?
+
+    # Make sure `.debug = false` does not respect `$DEBUG`
+    GVars.debug = false
+    $DEBUG = false
+    assert_equal false, GVars.debug
+    assert_equal false, GVars.debug?
+
+    $DEBUG = true
+    assert_equal false, GVars.debug
+    assert_equal false, GVars.debug?
+
+    # Make sure `.debug = true` does not respect `$DEBUG`
+    GVars.debug = true
+    $DEBUG = false
+    assert_equal true, GVars.debug
+    assert_equal true, GVars.debug?
+
+    $DEBUG = true
+    assert_equal true, GVars.debug
+    assert_equal true, GVars.debug?
+  ensure
+    $DEBUG = old_debug
+    GVars.debug = old_gvars_debug
+  end
 end

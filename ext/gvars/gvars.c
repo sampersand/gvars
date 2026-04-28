@@ -2,6 +2,20 @@
 #define dbg(...) (fprintf(stderr, "%s:%s:%d: ", __FILE__, __FUNCTION__, __LINE__), fprintf(stderr,__VA_ARGS__),fprintf(stderr,"\n"),fflush(stderr))
 
 VALUE gvars_module;
+static ID id_debug;
+
+static bool
+gvars_debug_enabled(void)
+{
+	VALUE debug_mode = rb_ivar_get(gvars_module, id_debug);
+	return debug_mode == Qnil ? ruby_debug : RTEST(debug_mode);
+}
+
+static VALUE
+gvars_f_defined_p(VALUE self)
+{
+	return gvars_debug_enabled() ? Qtrue : Qfalse;
+}
 
 // Converts `name` to a global variable name, ensures it's valid, and returns it.
 //
@@ -29,8 +43,6 @@ static char *get_global_name(VALUE *name, bool translate) {
 	return namestr;
 }
 
-
-
 static VALUE
 gvars_f_global_variable_get(VALUE self, VALUE name)
 {
@@ -49,11 +61,23 @@ gvars_f_global_variable_set(VALUE self, VALUE name, VALUE value)
 	return rb_gv_set(get_global_name(&name, false), value);
 }
 
-
 static VALUE
 gvars_f_global_variable_aset(VALUE self, VALUE name, VALUE value)
 {
-	return rb_gv_set(get_global_name(&name, true), value);
+	char *sname = get_global_name(&name, true);
+	if (gvars_debug_enabled()) {
+		char *sname_without_dollar = sname;
+		if (sname_without_dollar[0] == '$') {
+			++sname_without_dollar;
+		}
+
+		VALUE msg = rb_sprintf("GVars: setting global $%s to: %"PRIsVALUE"\n",
+			sname_without_dollar, rb_inspect(value));
+
+		rb_io_write(rb_gv_get("$stderr"), msg);
+	}
+
+	return rb_gv_set(sname, value);
 }
 
 static VALUE
@@ -359,6 +383,7 @@ void
 Init_gvars(void)
 {
 	gvars_module = rb_define_module("GVars");
+	VALUE gvars_singleton = rb_singleton_class(gvars_module);
 	rb_ivar_set(gvars_module, rb_intern("vars"), rb_hash_new());
 
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_GETTER] = rb_intern("getter");
@@ -366,6 +391,12 @@ Init_gvars(void)
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_INITIAL] = rb_intern("initial");
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_STATE] = rb_intern("state");
     virtual_method_keyword_ids[VIRTUAL_METHOD_KEYWORDS_READONLY] = rb_intern("readonly");
+
+
+    // Define debugging construct
+    id_debug = rb_intern_const("@debug");
+    rb_define_attr(gvars_singleton, "debug", 1, 1);
+    rb_define_singleton_method(gvars_module, "debug?", gvars_f_defined_p, 0);
 
 	// Define module-level functions that can be used as mixins
 	rb_define_module_function(gvars_module, "global_variable_get", gvars_f_global_variable_get, 1);
@@ -388,7 +419,6 @@ Init_gvars(void)
 	rb_define_singleton_method(gvars_module, "[]=", gvars_f_global_variable_aset, 2);
 
 	// Aliases
-	VALUE gvars_singleton = rb_singleton_class(gvars_module);
 	rb_define_alias(gvars_singleton, "get", "global_variable_get");
 	rb_define_alias(gvars_singleton, "set", "global_variable_set");
 	rb_define_alias(gvars_singleton, "alias", "alias_global_variable");
